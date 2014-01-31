@@ -2429,6 +2429,10 @@ void mdp4_hw_init(void)
 
 static int mdp_bus_scale_restore_request(void);
 
+#if defined(CONFIG_MACH_APQ8064_MAKO) && defined(CONFIG_UPDATE_LCDC_LUT)
+extern int update_preset_lcdc_lut(void);
+#endif
+
 static int mdp_on(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -2494,6 +2498,10 @@ static int mdp_on(struct platform_device *pdev)
 		ret = panel_next_late_init(pdev);
 
 	pr_debug("%s:-\n", __func__);
+
+#if defined(CONFIG_MACH_APQ8064_MAKO) && defined(CONFIG_UPDATE_LCDC_LUT)
+	update_preset_lcdc_lut();
+#endif
 
 	return ret;
 }
