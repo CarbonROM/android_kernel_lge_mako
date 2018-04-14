@@ -69,7 +69,7 @@ void msm_camera_io_dump(void __iomem *addr, int size)
 	int i;
 	u32 *p = (u32 *) addr;
 	u32 data;
-	CDBG("%s: %p %d\n", __func__, addr, size);
+	CDBG("%s: %pK %d\n", __func__, addr, size);
 	line_str[0] = '\0';
 	p_str = line_str;
 	for (i = 0; i < size/4; i++) {
@@ -93,7 +93,7 @@ void msm_camera_io_dump(void __iomem *addr, int size)
 void msm_camera_io_memcpy(void __iomem *dest_addr,
 	void __iomem *src_addr, u32 len)
 {
-	CDBG("%s: %p %p %d\n", __func__, dest_addr, src_addr, len);
+	CDBG("%s: %pK %pK %d\n", __func__, dest_addr, src_addr, len);
 	msm_camera_io_memcpy_toio(dest_addr, src_addr, len / 4);
 	msm_camera_io_dump(dest_addr, len);
 }
@@ -168,6 +168,12 @@ int msm_camera_config_vreg(struct device *dev, struct camera_vreg_t *cam_vreg,
 	int i = 0;
 	int rc = 0;
 	struct camera_vreg_t *curr_vreg;
+
+	if (cam_vreg == NULL) {
+		pr_err("%s:%d cam_vreg sequence invalid\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+
 	if (config) {
 		for (i = 0; i < num_vreg; i++) {
 			curr_vreg = &cam_vreg[i];

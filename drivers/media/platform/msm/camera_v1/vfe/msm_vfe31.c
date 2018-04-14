@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2012, 2015 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,6 +15,7 @@
 #include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/io.h>
+#include <linux/kernel.h>
 #include <mach/irqs.h>
 #include <mach/camera.h>
 #include <asm/atomic.h>
@@ -1668,8 +1669,6 @@ static int vfe31_proc_general(struct msm_vfe31_cmd *cmd)
 	uint32_t stereo_cam_enable = 0;
 	struct msm_sync* p_sync = (struct msm_sync *)vfe_syncdata;
 
-	CDBG("vfe31_proc_general: cmdID = %s, length = %d\n",
-		vfe31_general_cmd[cmd->id], cmd->length);
 	switch (cmd->id) {
 	case V31_RESET:
 		pr_info("vfe31_proc_general: cmdID = %s\n",
@@ -2237,6 +2236,12 @@ static int vfe31_proc_general(struct msm_vfe31_cmd *cmd)
 		break;
 
 	default: {
+		if (cmd->id < 0 || cmd->id >= ARRAY_SIZE(vfe31_cmd)) {
+			pr_err("%s - invalid vfe command %d",
+			__func__, cmd->id);
+			return -EINVAL;
+		}
+
 		if (cmd->length != vfe31_cmd[cmd->id].length)
 			return -EINVAL;
 
@@ -3129,9 +3134,9 @@ static void vfe31_process_output_path_irq_0(uint32_t ping_pong)
 		pcbcraddr_pong = vfe31_get_ch_pong_addr(
 			vfe31_ctrl->outpath.out0.ch1);
 
-		CDBG("ping = 0x%p, pong = 0x%p\n", (void *)pyaddr_ping,
+		CDBG("ping = 0x%pK, pong = 0x%pK\n", (void *)pyaddr_ping,
 			(void *)pyaddr_pong);
-		CDBG("ping_cbcr = 0x%p, pong_cbcr = 0x%p\n",
+		CDBG("ping_cbcr = 0x%pK, pong_cbcr = 0x%pK\n",
 			(void *)pcbcraddr_ping, (void *)pcbcraddr_pong);
 
 		/*put addresses*/
@@ -3145,7 +3150,7 @@ static void vfe31_process_output_path_irq_0(uint32_t ping_pong)
 			pcbcraddr_pong);
 		vfe31_put_ch_pong_addr(vfe31_ctrl->outpath.out0.ch1,
 			pcbcraddr_ping);
-		CDBG("after swap: ping = 0x%p, pong = 0x%p\n",
+		CDBG("after swap: ping = 0x%pK, pong = 0x%pK\n",
 			(void *)pyaddr_pong, (void *)pyaddr_ping);
 #endif
 	}
@@ -3353,9 +3358,9 @@ static void vfe31_process_output_path_irq_1(uint32_t ping_pong)
 		pcbcraddr_pong = vfe31_get_ch_pong_addr(
 			vfe31_ctrl->outpath.out1.ch1);
 
-		CDBG("ping = 0x%p, pong = 0x%p\n", (void *)pyaddr_ping,
+		CDBG("ping = 0x%pK, pong = 0x%pK\n", (void *)pyaddr_ping,
 			(void *)pyaddr_pong);
-		CDBG("ping_cbcr = 0x%p, pong_cbcr = 0x%p\n",
+		CDBG("ping_cbcr = 0x%pK, pong_cbcr = 0x%pK\n",
 			(void *)pcbcraddr_ping, (void *)pcbcraddr_pong);
 
 		/*put addresses*/
@@ -3369,7 +3374,7 @@ static void vfe31_process_output_path_irq_1(uint32_t ping_pong)
 			pcbcraddr_pong);
 		vfe31_put_ch_pong_addr(vfe31_ctrl->outpath.out1.ch1,
 			pcbcraddr_ping);
-		CDBG("after swap: ping = 0x%p, pong = 0x%p\n",
+		CDBG("after swap: ping = 0x%pK, pong = 0x%pK\n",
 			(void *)pyaddr_pong, (void *)pyaddr_ping);
 #endif
 	}
@@ -3448,9 +3453,9 @@ static void vfe31_process_output_path_irq_2(uint32_t ping_pong)
 		pcbcraddr_pong = vfe31_get_ch_pong_addr(
 			vfe31_ctrl->outpath.out2.ch1);
 
-		CDBG("ping = 0x%p, pong = 0x%p\n", (void *)pyaddr_ping,
+		CDBG("ping = 0x%pK, pong = 0x%pK\n", (void *)pyaddr_ping,
 			(void *)pyaddr_pong);
-		CDBG("ping_cbcr = 0x%p, pong_cbcr = 0x%p\n",
+		CDBG("ping_cbcr = 0x%pK, pong_cbcr = 0x%pK\n",
 			(void *)pcbcraddr_ping, (void *)pcbcraddr_pong);
 
 		/*put addresses*/
@@ -3464,7 +3469,7 @@ static void vfe31_process_output_path_irq_2(uint32_t ping_pong)
 			pcbcraddr_pong);
 		vfe31_put_ch_pong_addr(vfe31_ctrl->outpath.out2.ch1,
 			pcbcraddr_ping);
-		CDBG("after swap: ping = 0x%p, pong = 0x%p\n",
+		CDBG("after swap: ping = 0x%pK, pong = 0x%pK\n",
 			(void *)pyaddr_pong, (void *)pyaddr_ping);
 #endif
 	}

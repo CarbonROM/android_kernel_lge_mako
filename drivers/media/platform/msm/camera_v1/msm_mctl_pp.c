@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2013, 2015 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -35,6 +35,8 @@
 #else
 #define D(fmt, args...) do {} while (0)
 #endif
+
+#define UINT32_MAX       (4294967295U)
 
 static int msm_mctl_pp_buf_divert(
 			struct msm_cam_media_controller *pmctl,
@@ -135,7 +137,7 @@ static int is_buf_in_queue(struct msm_cam_v4l2_device *pcam,
 		buf_idx = buf->vidbuf.v4l2_buf.index;
 		mem = vb2_plane_cookie(&buf->vidbuf, 0);
 		if (mem == NULL) {
-			pr_err("%s Inst %p Buffer %d invalid plane cookie",
+			pr_err("%s Inst %pK Buffer %d invalid plane cookie",
 				__func__, pcam_inst, buf_idx);
 			spin_unlock_irqrestore(&pcam_inst->vq_irqlock, flags);
 			return 0;
@@ -193,13 +195,13 @@ static struct msm_cam_v4l2_dev_inst *msm_mctl_get_pcam_inst_for_divert(
 					dev_inst_map[img_mode]->my_index;
 				pcam_inst = pcam->mctl_node.dev_inst[idx];
 				*node_type = MCTL_NODE;
-				D("%s Found instance %p in mctl node device\n",
+				D("%s Found instance %pK in mctl node device\n",
 					__func__, pcam_inst);
 			} else if (pcam->dev_inst_map[img_mode]) {
 				idx = pcam->dev_inst_map[img_mode]->my_index;
 				pcam_inst = pcam->dev_inst[idx];
 				*node_type = VIDEO_NODE;
-				D("%s Found instance %p in video device",
+				D("%s Found instance %pK in video device",
 					__func__, pcam_inst);
 			} else {
 				pr_err("%s Cannot find instance for %d.\n",
@@ -275,7 +277,7 @@ int msm_mctl_do_pp_divert(
 	 * this buffer.*/
 	mem = vb2_plane_cookie(&vb->vidbuf, 0);
 	if (mem == NULL) {
-		pr_err("%s Inst %p Buffer %d, invalid plane cookie ", __func__,
+		pr_err("%s Inst %pK Buffer %d, invalid plane cookie ", __func__,
 			pcam_inst, buf_idx);
 		return -EINVAL;
 	}
@@ -304,7 +306,7 @@ int msm_mctl_do_pp_divert(
 		for (i = 0; i < div.frame.num_planes; i++) {
 			mem = vb2_plane_cookie(&vb->vidbuf, i);
 			if (mem == NULL) {
-				pr_err("%s Inst %p %d invalid plane cookie ",
+				pr_err("%s Inst %pK %d invalid plane cookie ",
 					__func__, pcam_inst, buf_idx);
 				return -EINVAL;
 			}
@@ -350,7 +352,7 @@ static int msm_mctl_pp_get_phy_addr(
 	 * this buffer.*/
 	mem = vb2_plane_cookie(&vb->vidbuf, 0);
 	if (mem == NULL) {
-		pr_err("%s Inst %p Buffer %d, invalid plane cookie ", __func__,
+		pr_err("%s Inst %pK Buffer %d, invalid plane cookie ", __func__,
 			pcam_inst, buf_idx);
 		return -EINVAL;
 	}
@@ -483,7 +485,7 @@ int msm_mctl_pp_reserve_free_frame(
 	}
 
 	image_mode = div_frame.image_mode;
-	if (image_mode <= 0) {
+	if (image_mode < 0  || image_mode >= MSM_MAX_IMG_MODE) {
 		pr_err("%s Invalid image mode %d", __func__, image_mode);
 		return -EINVAL;
 	}
@@ -510,7 +512,7 @@ int msm_mctl_pp_reserve_free_frame(
 			rc = -EFAULT;
 		}
 	}
-	D("%s: reserve free buf got buffer %d from %p rc = %d, phy = 0x%x",
+	D("%s: reserve free buf got buffer %d from %pK rc = %d, phy = 0x%x",
 		__func__, div_frame.frame.buf_idx,
 		pcam_inst, rc, free_buf.ch_paddr[0]);
 	return rc;
@@ -534,7 +536,7 @@ int msm_mctl_pp_release_free_frame(
 	}
 
 	image_mode = div_frame.image_mode;
-	if (image_mode < 0) {
+	if (image_mode < 0 || image_mode >= MSM_MAX_IMG_MODE) {
 		pr_err("%s Invalid image mode %d\n", __func__, image_mode);
 		return -EINVAL;
 	}
@@ -576,7 +578,7 @@ int msm_mctl_set_pp_key(struct msm_cam_media_controller *p_mctl,
 		ERR_COPY_FROM_USER();
 		rc = -EFAULT;
 	} else {
-		D("%s: mctl=0x%p, pp_key_setting=0x%x",
+		D("%s: mctl=0x%pK, pp_key_setting=0x%x",
 			__func__, p_mctl, p_mctl->pp_info.pp_key);
 	}
 	spin_unlock_irqrestore(&p_mctl->pp_info.lock, flags);
@@ -629,11 +631,24 @@ int msm_mctl_pp_done(
 			dirty = 1;
 		}
 	} else {
-		if (frame.num_planes > 1)
+		if (frame.num_planes > 1) {
+			if (frame.mp[0].phy_addr >
+					(UINT32_MAX - frame.mp[0].data_offset)) {
+				pr_err("%s:%d Invalid data offset\n", __func__, __LINE__);
+				return -EINVAL;
+
+			}
 			buf.ch_paddr[0] = frame.mp[0].phy_addr +
 						frame.mp[0].data_offset;
-		else
+		} else {
+				if (frame.sp.phy_addr >
+					(UINT32_MAX - frame.sp.y_off)) {
+					pr_err("%s:%d Invalid Y offset\n", __func__, __LINE__);
+					return -EINVAL;
+
+				}
 			buf.ch_paddr[0] = frame.sp.phy_addr + frame.sp.y_off;
+		}
 	}
 	spin_unlock_irqrestore(&p_mctl->pp_info.lock, flags);
 
@@ -694,11 +709,24 @@ int msm_mctl_pp_divert_done(
 		buf_handle.image_mode = image_mode;
 	}
 
-	if (frame.num_planes > 1)
+	if (frame.num_planes > 1) {
+			if (frame.mp[0].phy_addr >
+					(UINT32_MAX - frame.mp[0].data_offset)) {
+				pr_err("%s:%d Invalid data offset\n", __func__, __LINE__);
+				return -EINVAL;
+
+			}
 		buf.ch_paddr[0] = frame.mp[0].phy_addr +
 					frame.mp[0].data_offset;
-	else
+	} else {
+			if (frame.sp.phy_addr >
+				(UINT32_MAX - frame.sp.y_off)) {
+				pr_err("%s:%d Invalid Y offset\n", __func__, __LINE__);
+				return -EINVAL;
+
+			}
 		buf.ch_paddr[0] = frame.sp.phy_addr + frame.sp.y_off;
+	}
 
 	spin_unlock_irqrestore(&p_mctl->pp_info.lock, flags);
 

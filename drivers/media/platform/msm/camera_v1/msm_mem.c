@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2012, 2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -75,6 +75,7 @@ static DEFINE_MUTEX(hlist_mut);
 static int check_pmem_info(struct msm_pmem_info *info, int len)
 {
 	if (info->offset < len &&
+		info->offset <= (UINT_MAX - info->len) &&
 		info->offset + info->len <= len &&
 		info->planar0_off < len &&
 		info->planar1_off < len)
@@ -103,9 +104,9 @@ static int check_overlap(struct hlist_head *ptype,
 		if (CONTAINS(region, &t, paddr) ||
 			CONTAINS(&t, region, paddr) ||
 			OVERLAPS(region, &t, paddr)) {
-			CDBG(" region (PHYS %p len %ld)"
+			CDBG(" region (PHYS %pK len %ld)"
 				" clashes with registered region"
-				" (paddr %p len %ld)\n",
+				" (paddr %pK len %ld)\n",
 				(void *)t.paddr, t.len,
 				(void *)region->paddr, region->len);
 			return -EINVAL;
@@ -174,7 +175,7 @@ static int msm_pmem_table_add(struct hlist_head *ptype,
 	memcpy(&region->info, info, sizeof(region->info));
 	D("%s Adding region to list with type %d\n", __func__,
 						region->info.type);
-	D("%s pmem_stats address is 0x%p\n", __func__, ptype);
+	D("%s pmem_stats address is 0x%pK\n", __func__, ptype);
 	hlist_add_head(&(region->list), ptype);
 
 	return 0;
