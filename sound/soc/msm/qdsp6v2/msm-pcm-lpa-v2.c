@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, 2017,  The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -341,7 +341,9 @@ int lpa_set_volume(unsigned volume)
 {
 	int rc = 0;
 	if (lpa_audio.prtd && lpa_audio.prtd->audio_client) {
-		rc = q6asm_set_volume(lpa_audio.prtd->audio_client, volume);
+		rc = q6asm_set_lrgain(lpa_audio.prtd->audio_client,
+						(volume >> 16) & 0xFFFF,
+						volume & 0xFFFF);
 		if (rc < 0) {
 			pr_err("%s: Send Volume command failed rc=%d\n",
 					__func__, rc);
@@ -391,6 +393,7 @@ static int msm_pcm_playback_close(struct snd_pcm_substream *substream)
 	pr_debug("%s\n", __func__);
 	q6asm_audio_client_free(prtd->audio_client);
 	kfree(prtd);
+	runtime->private_data = NULL;
 
 	return 0;
 }
@@ -473,7 +476,7 @@ static int msm_pcm_hw_params(struct snd_pcm_substream *substream,
 	if (buf == NULL || buf[0].data == NULL)
 		return -ENOMEM;
 
-	pr_debug("%s:buf = %p\n", __func__, buf);
+	pr_debug("%s:buf = %pK\n", __func__, buf);
 	dma_buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	dma_buf->dev.dev = substream->pcm->card->dev;
 	dma_buf->private_data = NULL;

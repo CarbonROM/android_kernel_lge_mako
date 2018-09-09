@@ -503,6 +503,7 @@ static int msm_pcm_playback_close(struct snd_pcm_substream *substream)
 	multi_ch_pcm_audio.prtd = NULL;
 	q6asm_audio_client_free(prtd->audio_client);
 	kfree(prtd);
+	runtime->private_data = NULL;
 	return 0;
 }
 
@@ -595,6 +596,7 @@ static int msm_pcm_capture_close(struct snd_pcm_substream *substream)
 	SNDRV_PCM_STREAM_CAPTURE);
 	q6asm_audio_client_free(prtd->audio_client);
 	kfree(prtd);
+	runtime->private_data = NULL;
 
 	return 0;
 }
@@ -693,7 +695,7 @@ static int msm_pcm_hw_params(struct snd_pcm_substream *substream,
 	}
 	buf = prtd->audio_client->port[dir].buf;
 
-	pr_debug("%s:buf = %p\n", __func__, buf);
+	pr_debug("%s:buf = %pK\n", __func__, buf);
 	dma_buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	dma_buf->dev.dev = substream->pcm->card->dev;
 	dma_buf->private_data = NULL;

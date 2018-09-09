@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2013, 2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -49,7 +49,7 @@ struct snd_msm {
 	struct msm_audio *prtd;
 	unsigned volume;
 };
-static struct snd_msm compressed_audio = {NULL, 0x2000} ;
+static struct snd_msm compressed_audio = {NULL, 0x20002000} ;
 
 static struct audio_locks the_locks;
 
@@ -141,6 +141,7 @@ static void compr_event_handler(uint32_t opcode,
 		} else
 			atomic_set(&prtd->pending_buffer, 0);
 		if (runtime->status->hw_ptr >= runtime->control->appl_ptr) {
+			atomic_set(&prtd->pending_buffer, 1);
 			runtime->render_flag |= SNDRV_RENDER_STOPPED;
 			break;
 		}
@@ -204,7 +205,7 @@ static void compr_event_handler(uint32_t opcode,
 		break;
 	case ASM_DATA_EVENT_READ_DONE: {
 		pr_debug("ASM_DATA_EVENT_READ_DONE\n");
-		pr_debug("buf = %p, data = 0x%X, *data = %p,\n"
+		pr_debug("buf = %pK, data = 0x%X, *data = %pK,\n"
 			 "prtd->pcm_irq_pos = %d\n",
 				prtd->audio_client->port[OUT].buf,
 			 *(uint32_t *)prtd->audio_client->port[OUT].buf->data,
@@ -214,7 +215,7 @@ static void compr_event_handler(uint32_t opcode,
 		memcpy(prtd->audio_client->port[OUT].buf->data +
 			   prtd->pcm_irq_pos, (ptrmem + 2),
 			   COMPRE_CAPTURE_HEADER_SIZE);
-		pr_debug("buf = %p, updated data = 0x%X, *data = %p\n",
+		pr_debug("buf = %pK, updated data = 0x%X, *data = %pK\n",
 				prtd->audio_client->port[OUT].buf,
 			*(uint32_t *)(prtd->audio_client->port[OUT].buf->data +
 				prtd->pcm_irq_pos),
@@ -243,7 +244,7 @@ static void compr_event_handler(uint32_t opcode,
 	}
 	case ASM_DATA_EVENT_READ_COMPRESSED_DONE: {
 		pr_debug("ASM_DATA_EVENT_READ_COMPRESSED_DONE\n");
-		pr_debug("buf = %p, data = 0x%X, *data = %p,\n"
+		pr_debug("buf = %pK, data = 0x%X, *data = %pK,\n"
 			 "prtd->pcm_irq_pos = %d\n",
 				prtd->audio_client->port[OUT].buf,
 			 *(uint32_t *)prtd->audio_client->port[OUT].buf->data,
@@ -520,7 +521,7 @@ static int msm_compr_capture_prepare(struct snd_pcm_substream *substream)
 			read_param.paddr = (unsigned long)(buf[i].phys)
 					+ COMPRE_CAPTURE_HEADER_SIZE;
 			pr_debug("Push buffer [%d] to DSP, "\
-					"paddr: %p, vaddr: %p\n",
+					"paddr: %pK, vaddr: %pK\n",
 					i, (void *) read_param.paddr,
 					buf[i].data);
 			q6asm_async_read(prtd->audio_client, &read_param);
@@ -598,6 +599,7 @@ static int msm_compr_restart(struct snd_pcm_substream *substream)
 				(prtd->out_head + 1) & (runtime->periods - 1);
 
 		runtime->render_flag &= ~SNDRV_RENDER_STOPPED;
+		atomic_set(&prtd->pending_buffer, 0);
 		return 0;
 	}
 	return 0;
@@ -762,6 +764,7 @@ static int msm_compr_open(struct snd_pcm_substream *substream)
 	runtime->private_data = compr;
 	atomic_set(&prtd->eos, 0);
 	compressed_audio.prtd =  &compr->prtd;
+
 	return 0;
 }
 
@@ -769,8 +772,9 @@ int compressed_set_volume(unsigned volume)
 {
 	int rc = 0;
 	if (compressed_audio.prtd && compressed_audio.prtd->audio_client) {
-		rc = q6asm_set_volume(compressed_audio.prtd->audio_client,
-								 volume);
+		rc = q6asm_set_lrgain(compressed_audio.prtd->audio_client,
+						(volume >> 16) & 0xFFFF,
+						volume & 0xFFFF);
 		if (rc < 0) {
 			pr_err("%s: Send Volume command failed"
 					" rc=%d\n", __func__, rc);
@@ -804,6 +808,8 @@ static int msm_compr_playback_close(struct snd_pcm_substream *substream)
 			SNDRV_PCM_STREAM_PLAYBACK);
 	q6asm_audio_client_free(prtd->audio_client);
 	kfree(prtd);
+	runtime->private_data = NULL;
+
 	return 0;
 }
 
@@ -824,6 +830,7 @@ static int msm_compr_capture_close(struct snd_pcm_substream *substream)
 				SNDRV_PCM_STREAM_CAPTURE);
 	q6asm_audio_client_free(prtd->audio_client);
 	kfree(prtd);
+	runtime->private_data = NULL;
 
 	return 0;
 }
@@ -945,7 +952,7 @@ static int msm_compr_hw_params(struct snd_pcm_substream *substream,
 				prtd->audio_client->perf_mode,
 				prtd->session_id,
 				substream->stream);
-			ret = compressed_set_volume(compressed_audio.volume);
+			ret = compressed_set_volume(0);
 			if (ret < 0)
 				pr_err("%s : Set Volume failed : %d",
 					__func__, ret);
@@ -1028,7 +1035,7 @@ static int msm_compr_hw_params(struct snd_pcm_substream *substream,
 	dma_buf->addr =  buf[0].phys;
 	dma_buf->bytes = runtime->hw.buffer_bytes_max;
 
-	pr_debug("%s: buf[%p]dma_buf->area[%p]dma_buf->addr[%p]\n"
+	pr_debug("%s: buf[%pK]dma_buf->area[%pK]dma_buf->addr[%pK]\n"
 		 "dma_buf->bytes[%d]\n", __func__,
 		 (void *)buf, (void *)dma_buf->area,
 		 (void *)dma_buf->addr, dma_buf->bytes);
@@ -1163,7 +1170,7 @@ static int msm_compr_ioctl(struct snd_pcm_substream *substream,
 			}
 			rc = wait_event_timeout(the_locks.flush_wait,
 				prtd->cmd_ack, 5 * HZ);
-			if (rc < 0)
+			if (!rc)
 				pr_err("Flush cmd timeout\n");
 			prtd->pcm_irq_pos = 0;
 		}

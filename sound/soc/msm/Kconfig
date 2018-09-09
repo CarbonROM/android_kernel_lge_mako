@@ -151,6 +151,7 @@ config SND_SOC_MSM8960
 	select SND_SOC_CS8427 if !MACH_APQ8064_MAKO
 	select SND_SOC_DUAL_AMIC if MACH_APQ8064_MAKO
 	select SND_SOC_TPA2028D if MACH_APQ8064_MAKO
+	select SND_HWDEP
 	default n
 	help
 	 To add support for SoC audio on MSM8960 and APQ8064 boards
@@ -208,11 +209,5 @@ config SND_SOC_DUAL_AMIC
 	bool "SoC feature for dual analog mic"
 	help
 	 To add support for dual analog mic.
-
-config ASUSTEK_HEADSET
-	tristate "ASUSTek Headset/headphone detection driver"
-	default n
-	help
-	 Provides support for detecting ASUSTek headset/headphone devices.
 
 endmenu
