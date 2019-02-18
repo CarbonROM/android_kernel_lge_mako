@@ -1432,6 +1432,9 @@ static int _setup_cipher_aes_cmdlistptrs(struct qce_device *pdev,
 		}
 	break;
 	default:
+		pr_err("Unknown mode of operation %d received, exiting now\n",
+			mode);
+		return -EINVAL;
 	break;
 	}
 
@@ -1585,6 +1588,8 @@ static int _setup_cipher_des_cmdlistptrs(struct qce_device *pdev,
 		}
 	break;
 	default:
+		pr_err("Unknown algorithms %d received, exiting now\n", alg);
+		return -EINVAL;
 	break;
 	}
 
@@ -1806,6 +1811,8 @@ static int _setup_auth_cmdlistptrs(struct qce_device *pdev,
 								0, NULL);
 	break;
 	default:
+		pr_err("Unknown algorithms %d received, exiting now\n", alg);
+		return -EINVAL;
 	break;
 	}
 
@@ -2150,10 +2157,22 @@ int qce_aead_req(void *handle, struct qce_req *q_req)
 
 	if (q_req->mode != QCE_MODE_CCM)
 		ivsize = crypto_aead_ivsize(aead);
+		auth_cmdlistinfo = &pce_dev->ce_sps.cmdlistptr.aead_sha1_hmac;
+		if (auth_cmdlistinfo == NULL) {
+			pr_err("Received NULL cmdlist, exiting now\n");
+			return -EINVAL;
+		}
+	}
 
 	ce_burst_size = pce_dev->ce_sps.ce_burst_size;
 	if (q_req->dir == QCE_ENCRYPT) {
 		q_req->cryptlen = areq->cryptlen;
+		if ((q_req->cryptlen > UINT_MAX - areq->assoclen) ||
+			(q_req->cryptlen + areq->assoclen >
+			UINT_MAX - ivsize)) {
+			pr_err("Integer overflow on total aead req length.\n");
+			return -EINVAL;
+		}
 			totallen_in = q_req->cryptlen + areq->assoclen + ivsize;
 		if (q_req->mode == QCE_MODE_CCM) {
 			out_len = areq->cryptlen + authsize;
@@ -2163,6 +2182,12 @@ int qce_aead_req(void *handle, struct qce_req *q_req)
 		}
 	} else {
 		q_req->cryptlen = areq->cryptlen - authsize;
+		if ((q_req->cryptlen > UINT_MAX - areq->assoclen) ||
+			(q_req->cryptlen + areq->assoclen >
+			UINT_MAX - ivsize)) {
+			pr_err("Integer overflow on total aead req length.\n");
+			return -EINVAL;
+		}
 		if (q_req->mode == QCE_MODE_CCM)
 			totallen_in = areq->cryptlen + areq->assoclen;
 		else
